@@ -1,1 +1,1 @@
-﻿ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "revokedReason" TEXT;
+ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "revokedReason" TEXT;`r`n
