@@ -1,7 +1,18 @@
-﻿import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
+
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required to bootstrap the admin user.");
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString })
+});
 
 function getBootstrapValue(name, fallback) {
   const value = process.env[name]?.trim();

@@ -19,16 +19,16 @@ function getMaxPdfBytes() {
 
 function getUploadedPdfError(file: File, maxPdfBytes: number) {
   if (file.size === 0) {
-    return `File \"${file.name}\" is empty.`;
+    return `Fayl \"${file.name}\" bo'sh bo'lmasligi kerak.`;
   }
 
   if (file.size > maxPdfBytes) {
     const maxPdfMb = Math.floor(maxPdfBytes / (1024 * 1024));
-    return `File \"${file.name}\" exceeds the ${maxPdfMb} MB limit.`;
+    return `Fayl \"${file.name}\" ${maxPdfMb} MB limitidan oshib ketdi.`;
   }
 
   if (file.type !== "application/pdf") {
-    return `File \"${file.name}\" must be a PDF.`;
+    return `Fayl \"${file.name}\" PDF bo'lishi kerak.`;
   }
 
   return null;
@@ -107,7 +107,7 @@ export async function readDocumentFileContent(storageKey: string) {
 
 export async function uploadDocumentFiles(documentRecordId: string, files: File[]) {
   if (files.length === 0) {
-    throw new Error("Select at least one PDF file.");
+    throw new Error("Kamida bitta PDF faylni tanlang.");
   }
 
   const documentRecord = await prisma.documentRecord.findUnique({
@@ -116,7 +116,7 @@ export async function uploadDocumentFiles(documentRecordId: string, files: File[
   });
 
   if (!documentRecord) {
-    throw new Error("Document record not found.");
+    throw new Error("Hujjat yozuvi topilmadi.");
   }
 
   const maxPdfBytes = getMaxPdfBytes();
@@ -137,7 +137,7 @@ export async function uploadDocumentFiles(documentRecordId: string, files: File[
 
     const buffer = Buffer.from(await file.arrayBuffer());
     if (buffer.subarray(0, 5).toString("utf8") !== "%PDF-") {
-      throw new Error(`File \"${file.name}\" is not a valid PDF.`);
+      throw new Error(`Fayl \"${file.name}\" yaroqli PDF emas.`);
     }
 
     const storageKey = createDocumentFileStorageKey(documentRecordId);
@@ -216,7 +216,7 @@ export async function deleteDocumentFile(
     });
 
     if (!documentFile) {
-      throw new Error("Document file not found.");
+      throw new Error("Hujjat fayli topilmadi.");
     }
 
     await tx.documentFile.delete({

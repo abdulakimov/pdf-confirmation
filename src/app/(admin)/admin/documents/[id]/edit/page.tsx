@@ -1,19 +1,30 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, BadgeCheck, FilePenLine, FileText, Save } from "lucide-react";
 
 import {
+  AdminToast,
   DocumentFileList,
   DocumentFileUploadForm,
   DocumentPublicVerificationCard,
   DocumentRecordForm,
+  DocumentStampUploadForm,
+  DocumentStatusActions,
   DocumentStatusBadge
 } from "@/components/admin";
 import {
+  expireDocumentRecordAction,
+  publishDocumentRecordAction,
+  returnDocumentRecordToDraftAction,
   revokeDocumentRecordAction,
   updateDocumentRecordAction,
-  uploadDocumentFilesAction
+  removeDocumentStampImageAction
 } from "@/server/actions";
-import { getDocumentRecordById } from "@/server/services";
+import {
+  getDocumentRecordById,
+  getDocumentStampMaxImageMb,
+  readDocumentStampImageDataUrl
+} from "@/server/services";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +37,7 @@ function formatDate(value: Date | null) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("uz-UZ", {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(value);
@@ -38,9 +49,11 @@ function getMaxPdfMb() {
 }
 
 export default async function EditDocumentRecordPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ toast?: string; toastKind?: string }>;
 }) {
   const { id } = await params;
   const record = await getDocumentRecordById(id);
@@ -49,62 +62,84 @@ export default async function EditDocumentRecordPage({
     notFound();
   }
 
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const toastMessage = resolvedSearchParams?.toast?.trim() || null;
+  const toastKind =
+    resolvedSearchParams?.toastKind === "error"
+      ? "error"
+      : resolvedSearchParams?.toastKind === "info"
+        ? "info"
+        : "success";
+
   const maxPdfMb = getMaxPdfMb();
+  const maxStampImageMb = getDocumentStampMaxImageMb();
+  const stampImageDataUrl = await readDocumentStampImageDataUrl(
+    record.stampImageKey
+  );
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl px-6 py-10">
+      {toastMessage ? <AdminToast kind={toastKind} message={toastMessage} /> : null}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">
-            Edit document record
+          <p className="flex items-center gap-2 text-sm font-medium text-slate-500">
+            <FilePenLine aria-hidden className="h-4 w-4" />
+            Hujjatni tahrirlash
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900">
             {record.title}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Update metadata, manage uploaded PDFs, and control the public
-            verification link. PDF and QR workflows stay admin-only here.
+            Metama&apos;lumotlarni yangilang, holat amallarini boshqaring va ommaviy
+            tasdiqlash havolasini nazorat qiling. PDF va QR ish jarayonlari faqat
+            admin uchun qoladi.
           </p>
         </div>
         <Link
-          className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
-          href="/admin/documents"
+          className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+          href="/"
         >
-          Back to records
+          <ArrowLeft aria-hidden className="h-4 w-4" />
+          Ro&apos;yxatga qaytish
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <DocumentRecordForm
-            action={updateDocumentRecordAction}
+          <DocumentStatusActions
+            expireAction={expireDocumentRecordAction.bind(null, record.id)}
+            publishAction={publishDocumentRecordAction.bind(null, record.id)}
+            revokeAction={revokeDocumentRecordAction.bind(null, record.id)}
+            returnToDraftAction={returnDocumentRecordToDraftAction.bind(null, record.id)}
+            status={record.status}
+          />
+
+          <DocumentStampUploadForm
             documentRecordId={record.id}
-            initialValues={{
-              title: record.title,
-              fullName: record.fullName,
-              passport: record.passport,
-              issuedDate: toDateInputValue(record.issuedDate),
-              status: record.status,
-              stampImageKey: record.stampImageKey ?? ""
-            }}
-            submitLabel="Save changes"
+            maxStampImageMb={maxStampImageMb}
+            removeAction={removeDocumentStampImageAction.bind(null, record.id)}
+            stampImageDataUrl={stampImageDataUrl}
           />
 
           <div className="border-t border-slate-200 pt-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-slate-900">Uploaded PDFs</p>
+                <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                  <FileText aria-hidden className="h-4 w-4 text-slate-500" />
+                  Yuklangan PDF fayllar
+                </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Upload one or more PDF files for this record. Files are stored
-                  in order and public routes become available only when the
-                  record is VERIFIED.
+                  Ushbu hujjat uchun bir yoki bir nechta PDF fayl yuklang.
+                  Fayllar tartib bilan saqlanadi va ommaviy sahifalar faqat
+                  hujjat tasdiqlangan bo&apos;lganda ochiladi.
                 </p>
               </div>
             </div>
 
             <div className="mt-4">
               <DocumentFileUploadForm
-                action={uploadDocumentFilesAction.bind(null, record.id)}
+                documentRecordId={record.id}
                 maxPdfMb={maxPdfMb}
               />
             </div>
@@ -119,22 +154,20 @@ export default async function EditDocumentRecordPage({
           </div>
 
           <div className="border-t border-slate-200 pt-6">
-            <p className="text-sm font-medium text-slate-900">Revoke record</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Revoking marks the record as invalid and keeps a timestamped
-              audit trail.
-            </p>
-            <form
-              className="mt-4"
-              action={revokeDocumentRecordAction.bind(null, record.id)}
-            >
-              <button
-                className="inline-flex items-center rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
-                type="submit"
-              >
-                Revoke record
-              </button>
-            </form>
+            <DocumentRecordForm
+              action={updateDocumentRecordAction}
+              documentRecordId={record.id}
+              initialValues={{
+                title: record.title,
+                fullName: record.fullName,
+                passport: record.passport,
+                issuedDate: toDateInputValue(record.issuedDate),
+                status: record.status
+              }}
+              showStatusSelect={false}
+              submitIcon={<Save aria-hidden className="h-4 w-4" />}
+              submitLabel="Saqlash"
+            />
           </div>
         </section>
 
@@ -146,28 +179,33 @@ export default async function EditDocumentRecordPage({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Status
+              <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <BadgeCheck aria-hidden className="h-3.5 w-3.5" />
+                Holat
               </p>
               <div className="mt-2">
                 <DocumentStatusBadge status={record.status} />
               </div>
             </div>
 
-            <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>
-                <span className="font-medium text-slate-900">Published:</span>{" "}
-                {formatDate(record.publishedAt)}
-              </p>
-              <p>
-                <span className="font-medium text-slate-900">Revoked:</span>{" "}
-                {formatDate(record.revokedAt)}
-              </p>
-              <p>
-                <span className="font-medium text-slate-900">Updated:</span>{" "}
-                {formatDate(record.updatedAt)}
-              </p>
-            </div>
+            <dl className="mt-4 space-y-3 text-sm text-slate-600">
+              <div className="space-y-1">
+                <dt className="font-medium text-slate-900">E&apos;lon qilingan</dt>
+                <dd>{formatDate(record.publishedAt)}</dd>
+              </div>
+              <div className="space-y-1">
+                <dt className="font-medium text-slate-900">Bekor qilingan</dt>
+                <dd>{formatDate(record.revokedAt)}</dd>
+              </div>
+              <div className="space-y-1">
+                <dt className="font-medium text-slate-900">Bekor qilish sababi</dt>
+                <dd>{record.revokedReason?.trim() ? record.revokedReason : "-"}</dd>
+              </div>
+              <div className="space-y-1">
+                <dt className="font-medium text-slate-900">Yangilangan</dt>
+                <dd>{formatDate(record.updatedAt)}</dd>
+              </div>
+            </dl>
           </div>
         </aside>
       </div>

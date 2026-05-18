@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,7 +29,7 @@ export function AdminLoginForm() {
         setIsPending(false);
 
         if (error) {
-          setError(error.message ?? "Unable to sign in");
+          setError("Kirish amalga oshmadi");
           return;
         }
 
@@ -39,7 +39,7 @@ export function AdminLoginForm() {
     >
       <div className="space-y-2">
         <label className="text-sm font-medium text-slate-700" htmlFor="email">
-          Email
+          Elektron pochta
         </label>
         <input
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition placeholder:text-slate-400 focus:border-slate-900"
@@ -53,7 +53,7 @@ export function AdminLoginForm() {
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium text-slate-700" htmlFor="password">
-          Password
+          Parol
         </label>
         <input
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition placeholder:text-slate-400 focus:border-slate-900"
@@ -75,7 +75,7 @@ export function AdminLoginForm() {
         disabled={isPending}
         type="submit"
       >
-        {isPending ? "Signing in..." : "Sign in"}
+        {isPending ? "Kirish..." : "Kirish"}
       </button>
     </form>
   );

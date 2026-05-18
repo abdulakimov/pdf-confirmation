@@ -15,7 +15,7 @@ function buildContentDisposition(filename: string, mode: "inline" | "attachment"
 async function streamPdf(token: string, fileId: string, mode: "inline" | "attachment") {
   const fileEntry = await getVerifiedDocumentFileByTokenAndFileId(token, fileId);
   if (!fileEntry) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Topilmadi", { status: 404 });
   }
 
   try {
@@ -34,7 +34,7 @@ async function streamPdf(token: string, fileId: string, mode: "inline" | "attach
       }
     });
   } catch {
-    return new Response("Not found", { status: 404 });
+    return new Response("Topilmadi", { status: 404 });
   }
 }
 

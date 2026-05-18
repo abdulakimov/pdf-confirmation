@@ -23,13 +23,13 @@ export async function GET(
   }
 ) {
   if (!(await requireAdmin())) {
-    return new Response("Unauthorized", { status: 401 });
+    return new Response("Ruxsatsiz", { status: 401 });
   }
 
   const { id } = await params;
   const record = await getDocumentRecordById(id);
   if (!record) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Topilmadi", { status: 404 });
   }
 
   const qrSvg = await generatePublicVerificationQrSvg(record.publicToken);
@@ -39,7 +39,7 @@ export async function GET(
   return new Response(qrSvg, {
     headers: {
       "Cache-Control": "no-store",
-      "Content-Disposition": `${isDownload ? "attachment" : "inline"}; filename="document-verification-qr.svg"`,
+      "Content-Disposition": `${isDownload ? "attachment" : "inline"}; filename="hujjat-tasdiqlash-qr.svg"`,
       "Content-Type": "image/svg+xml; charset=utf-8",
       "X-Content-Type-Options": "nosniff"
     }

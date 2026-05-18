@@ -6,7 +6,7 @@ ENV DATABASE_URL=postgresql://pdf_confirmation:pdf_confirmation@db:5432/pdf_conf
 RUN corepack enable && corepack prepare pnpm@10.30.1 --activate
 
 FROM base AS deps
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml prisma.config.ts ./
 COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
 

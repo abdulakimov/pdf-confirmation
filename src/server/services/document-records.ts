@@ -1,4 +1,4 @@
-import type { DocumentRecord } from "@prisma/client";
+﻿import type { DocumentRecord } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import type { DocumentRecordInput } from "@/lib/validators";
@@ -6,6 +6,12 @@ import type { DocumentRecordInput } from "@/lib/validators";
 import { generatePublicVerificationToken } from "./public-token";
 
 const PUBLIC_TOKEN_ATTEMPTS = 8;
+
+type LifecycleFields = {
+  publishedAt: Date | null;
+  revokedAt: Date | null;
+  revokedReason: string | null;
+};
 
 export type DocumentRecordSnapshot = {
   id: string;
@@ -18,9 +24,50 @@ export type DocumentRecordSnapshot = {
   stampImageKey: string | null;
   publishedAt: Date | null;
   revokedAt: Date | null;
+  revokedReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+function normalizeRevokedReason(revokedReason?: string | null) {
+  const trimmed = revokedReason?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function sameDate(left: Date | null, right: Date | null) {
+  if (!left && !right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.getTime() === right.getTime();
+}
+
+function getLifecycleFields(
+  status: DocumentRecordInput["status"],
+  existing?: DocumentRecord,
+  revokedReason?: string | null
+): LifecycleFields {
+  const now = new Date();
+  const publishedAt = existing?.publishedAt ?? (status === "DRAFT" ? null : now);
+
+  if (status === "REVOKED") {
+    return {
+      publishedAt,
+      revokedAt: existing?.revokedAt ?? now,
+      revokedReason: normalizeRevokedReason(revokedReason) ?? existing?.revokedReason ?? null
+    };
+  }
+
+  return {
+    publishedAt,
+    revokedAt: null,
+    revokedReason: null
+  };
+}
 
 export function snapshotDocumentRecord(
   documentRecord: DocumentRecord
@@ -36,6 +83,7 @@ export function snapshotDocumentRecord(
     stampImageKey: documentRecord.stampImageKey,
     publishedAt: documentRecord.publishedAt,
     revokedAt: documentRecord.revokedAt,
+    revokedReason: documentRecord.revokedReason,
     createdAt: documentRecord.createdAt,
     updatedAt: documentRecord.updatedAt
   };
@@ -58,20 +106,6 @@ export async function getDocumentRecordById(id: string) {
   });
 }
 
-function getLifecycleDates(status: DocumentRecordInput["status"], existing?: DocumentRecord) {
-  const now = new Date();
-  const publishedAt = existing?.publishedAt ?? (status === "DRAFT" ? null : now);
-  const revokedAt =
-    status === "REVOKED"
-      ? existing?.revokedAt ?? now
-      : existing?.revokedAt ?? null;
-
-  return {
-    publishedAt,
-    revokedAt: status === "REVOKED" ? revokedAt : null
-  };
-}
-
 function buildAuditSnapshot(documentRecord: {
   id: string;
   publicToken: string;
@@ -83,6 +117,7 @@ function buildAuditSnapshot(documentRecord: {
   stampImageKey: string | null;
   publishedAt: Date | null;
   revokedAt: Date | null;
+  revokedReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -97,9 +132,63 @@ function buildAuditSnapshot(documentRecord: {
     stampImageKey: documentRecord.stampImageKey,
     publishedAt: documentRecord.publishedAt?.toISOString() ?? null,
     revokedAt: documentRecord.revokedAt?.toISOString() ?? null,
+    revokedReason: documentRecord.revokedReason,
     createdAt: documentRecord.createdAt.toISOString(),
     updatedAt: documentRecord.updatedAt.toISOString()
   };
+}
+
+async function setDocumentRecordStatus(
+  documentRecordId: string,
+  status: DocumentRecord["status"],
+  action: string,
+  revokedReason?: string | null
+) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.documentRecord.findUnique({
+      where: { id: documentRecordId }
+    });
+
+    if (!existing) {
+      throw new Error("Hujjat yozuvi topilmadi.");
+    }
+
+    const { publishedAt, revokedAt, revokedReason: nextRevokedReason } =
+      getLifecycleFields(status, existing, revokedReason);
+
+    const unchanged =
+      existing.status === status &&
+      sameDate(existing.publishedAt, publishedAt) &&
+      sameDate(existing.revokedAt, revokedAt) &&
+      existing.revokedReason === nextRevokedReason;
+
+    if (unchanged) {
+      return existing;
+    }
+
+    const updated = await tx.documentRecord.update({
+      where: { id: documentRecordId },
+      data: {
+        status,
+        publishedAt,
+        revokedAt,
+        revokedReason: nextRevokedReason
+      }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action,
+        documentRecordId: updated.id,
+        metadata: {
+          before: buildAuditSnapshot(existing),
+          after: buildAuditSnapshot(updated)
+        }
+      }
+    });
+
+    return updated;
+  });
 }
 
 export async function createDocumentRecord(input: DocumentRecordInput) {
@@ -114,7 +203,7 @@ export async function createDocumentRecord(input: DocumentRecordInput) {
       continue;
     }
 
-    const { publishedAt, revokedAt } = getLifecycleDates(input.status);
+    const { publishedAt, revokedAt, revokedReason } = getLifecycleFields(input.status);
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -126,9 +215,9 @@ export async function createDocumentRecord(input: DocumentRecordInput) {
             passport: input.passport,
             issuedDate: input.issuedDate,
             status: input.status,
-            stampImageKey: input.stampImageKey ?? null,
             publishedAt,
-            revokedAt
+            revokedAt,
+            revokedReason
           }
         });
 
@@ -153,7 +242,28 @@ export async function createDocumentRecord(input: DocumentRecordInput) {
     }
   }
 
-  throw new Error("Unable to create a unique document record.");
+  throw new Error("Yagona hujjat yozuvini yaratib bo'lmadi.");
+}
+
+export async function deleteDocumentRecordForCleanup(documentRecordId: string) {
+  const trimmedDocumentRecordId = documentRecordId.trim();
+  if (!trimmedDocumentRecordId) {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.deleteMany({
+      where: { documentRecordId: trimmedDocumentRecordId }
+    });
+
+    await tx.documentFile.deleteMany({
+      where: { documentRecordId: trimmedDocumentRecordId }
+    });
+
+    await tx.documentRecord.deleteMany({
+      where: { id: trimmedDocumentRecordId }
+    });
+  });
 }
 
 export async function updateDocumentRecord(
@@ -166,10 +276,13 @@ export async function updateDocumentRecord(
     });
 
     if (!existing) {
-      throw new Error("Document record not found.");
+      throw new Error("Hujjat yozuvi topilmadi.");
     }
 
-    const { publishedAt, revokedAt } = getLifecycleDates(input.status, existing);
+    const { publishedAt, revokedAt, revokedReason } = getLifecycleFields(
+      input.status,
+      existing
+    );
 
     const updated = await tx.documentRecord.update({
       where: { id: documentRecordId },
@@ -179,9 +292,9 @@ export async function updateDocumentRecord(
         passport: input.passport,
         issuedDate: input.issuedDate,
         status: input.status,
-        stampImageKey: input.stampImageKey ?? null,
         publishedAt,
-        revokedAt
+        revokedAt,
+        revokedReason
       }
     });
 
@@ -200,41 +313,38 @@ export async function updateDocumentRecord(
   });
 }
 
-export async function revokeDocumentRecord(documentRecordId: string) {
-  return prisma.$transaction(async (tx) => {
-    const existing = await tx.documentRecord.findUnique({
-      where: { id: documentRecordId }
-    });
+export async function publishDocumentRecord(documentRecordId: string) {
+  return setDocumentRecordStatus(
+    documentRecordId,
+    "VERIFIED",
+    "document_record_published"
+  );
+}
 
-    if (!existing) {
-      throw new Error("Document record not found.");
-    }
+export async function revokeDocumentRecord(
+  documentRecordId: string,
+  revokedReason?: string | null
+) {
+  return setDocumentRecordStatus(
+    documentRecordId,
+    "REVOKED",
+    "document_record_revoked",
+    revokedReason
+  );
+}
 
-    const now = new Date();
-    const revokedAt = existing.revokedAt ?? now;
-    const publishedAt = existing.publishedAt ?? now;
+export async function expireDocumentRecord(documentRecordId: string) {
+  return setDocumentRecordStatus(
+    documentRecordId,
+    "EXPIRED",
+    "document_record_expired"
+  );
+}
 
-    const updated = await tx.documentRecord.update({
-      where: { id: documentRecordId },
-      data: {
-        status: "REVOKED",
-        publishedAt,
-        revokedAt
-      }
-    });
-
-    await tx.auditLog.create({
-      data: {
-        action: "document_record_revoked",
-        documentRecordId: updated.id,
-        metadata: {
-          before: buildAuditSnapshot(existing),
-          after: buildAuditSnapshot(updated),
-          revokedAt: updated.revokedAt?.toISOString() ?? null
-        }
-      }
-    });
-
-    return updated;
-  });
+export async function returnDocumentRecordToDraft(documentRecordId: string) {
+  return setDocumentRecordStatus(
+    documentRecordId,
+    "DRAFT",
+    "document_record_returned_to_draft"
+  );
 }

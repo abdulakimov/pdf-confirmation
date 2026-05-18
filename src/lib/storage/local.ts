@@ -16,6 +16,17 @@ export function createDocumentFileStorageKey(documentRecordId: string) {
   return path.posix.join("documents", documentRecordId, `${randomUUID()}.pdf`);
 }
 
+export function createDocumentStampImageStorageKey(
+  documentRecordId: string,
+  extension: "png" | "jpg" | "webp"
+) {
+  return path.posix.join(
+    "documents",
+    documentRecordId,
+    `stamp-${randomUUID()}.${extension}`
+  );
+}
+
 function resolveStoragePath(storageKey: string) {
   const uploadRoot = getLocalUploadRootPath();
   const resolvedPath = path.resolve(uploadRoot, storageKey);
@@ -40,6 +51,22 @@ export async function readLocalPdf(storageKey: string) {
 }
 
 export async function deleteLocalPdf(storageKey: string) {
+  const targetPath = resolveStoragePath(storageKey);
+  await rm(targetPath, { force: true });
+}
+
+export async function writeLocalImage(storageKey: string, data: Buffer) {
+  const targetPath = resolveStoragePath(storageKey);
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, data);
+}
+
+export async function readLocalImage(storageKey: string) {
+  const targetPath = resolveStoragePath(storageKey);
+  return readFile(targetPath);
+}
+
+export async function deleteLocalImage(storageKey: string) {
   const targetPath = resolveStoragePath(storageKey);
   await rm(targetPath, { force: true });
 }

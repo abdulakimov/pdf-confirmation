@@ -8,15 +8,22 @@ const statusStyles: Record<DocumentRecord["status"], string> = {
   EXPIRED: "border-amber-200 bg-amber-50 text-amber-700"
 };
 
+const statusLabels: Record<DocumentRecord["status"], string> = {
+  DRAFT: "Qoralama",
+  VERIFIED: "Tasdiqlangan",
+  REVOKED: "Bekor qilingan",
+  EXPIRED: "Muddati tugagan"
+};
+
 export function DocumentStatusBadge({ status }: { status: DocumentRecord["status"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium uppercase tracking-[0.18em]",
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
         statusStyles[status]
       )}
     >
-      {status.toLowerCase()}
+      {statusLabels[status]}
     </span>
   );
 }

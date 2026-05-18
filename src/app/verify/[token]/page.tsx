@@ -1,11 +1,9 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
-
-import path from "node:path";
-import { readFile } from "node:fs/promises";
+import { CheckCircle2, Download, Eye, FileText } from "lucide-react";
 
 import { prisma } from "@/lib/db";
-import { getLocalUploadRootPath } from "@/lib/storage";
+import { readDocumentStampImageDataUrl } from "@/server/services";
 
 export const dynamic = "force-dynamic";
 
@@ -23,54 +21,34 @@ function formatIssuedDate(date: Date) {
   }).format(date);
 }
 
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"] as const;
+  let value = sizeBytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatUploadedTime(date: Date) {
+  return new Intl.DateTimeFormat("uz-UZ", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
 function buildFileHref(token: string, fileId: string, mode: "view" | "download") {
   return `/verify/${token}/files/${fileId}/${mode}`;
-}
-
-function getImageMimeType(filePath: string) {
-  const extension = path.extname(filePath).toLowerCase();
-
-  switch (extension) {
-    case ".jpg":
-    case ".jpeg":
-      return "image/jpeg";
-    case ".webp":
-      return "image/webp";
-    case ".gif":
-      return "image/gif";
-    case ".png":
-      return "image/png";
-    case ".svg":
-      return "image/svg+xml";
-    default:
-      return null;
-  }
-}
-
-async function readStampImageDataUrl(stampImageKey: string | null) {
-  if (!stampImageKey) {
-    return null;
-  }
-
-  const uploadRoot = getLocalUploadRootPath();
-  const resolvedPath = path.resolve(uploadRoot, stampImageKey);
-  const rootWithSeparator = `${uploadRoot}${path.sep}`;
-
-  if (resolvedPath !== uploadRoot && !resolvedPath.startsWith(rootWithSeparator)) {
-    return null;
-  }
-
-  const mimeType = getImageMimeType(resolvedPath);
-  if (!mimeType) {
-    return null;
-  }
-
-  try {
-    const image = await readFile(resolvedPath);
-    return `data:${mimeType};base64,${image.toString("base64")}`;
-  } catch {
-    return null;
-  }
 }
 
 function VerificationLabel({
@@ -81,30 +59,43 @@ function VerificationLabel({
   value: string;
 }) {
   return (
-    <div className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+    <div className="flex items-start gap-2">
+      <p className="shrink-0 text-[17px] font-medium leading-7 text-slate-400">
         {label}
       </p>
-      <p className="text-[17px] font-semibold leading-7 text-slate-900 sm:text-[18px]">
+      <p className="min-w-0 break-words whitespace-normal text-[17px] font-semibold leading-7 text-slate-900 sm:text-[18px]">
         {value}
       </p>
     </div>
   );
 }
 
-function InvalidVerificationPage() {
+function InvalidVerificationPage({
+  badge,
+  title,
+  description,
+  toneClassName
+}: {
+  badge: string;
+  title: string;
+  description: string;
+  toneClassName: string;
+}) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
       <section className="w-full max-w-[520px] rounded-[28px] border border-slate-200 bg-white px-5 py-8 text-center shadow-sm sm:px-8">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-500">
+        <p className="text-[11px] font-semibold text-slate-500">
           Tekshiruv
         </p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
-          Hujjat topilmadi yoki yaroqsiz
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          Bu havola bo&apos;yicha tasdiqlangan yozuv mavjud emas yoki u bekor qilingan.
-        </p>
+        <div className={`mt-4 rounded-[24px] border px-4 py-4 ${toneClassName}`}>
+          <p className="text-[11px] font-semibold text-current">
+            {badge}
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">
+            {title}
+          </h1>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-slate-600">{description}</p>
       </section>
     </main>
   );
@@ -124,6 +115,8 @@ function VerifiedVerificationPage({
     files: Array<{
       id: string;
       originalName: string;
+      createdAt: Date;
+      sizeBytes: number;
     }>;
   };
   stampImageDataUrl: string | null;
@@ -132,11 +125,14 @@ function VerifiedVerificationPage({
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 sm:py-8">
       <section className="mx-auto w-full max-w-[720px] rounded-[30px] border border-emerald-200 bg-white px-4 py-4 shadow-sm sm:px-6 sm:py-6">
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">
+          <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <CheckCircle2 aria-hidden className="h-4 w-4" />
+          </div>
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700">
             HUJJAT HAQIQIY
           </p>
           <p className="mt-1 text-sm font-medium text-emerald-800">
-            Tasdiqlangan hujjat
+            Mazkur hujjat tizim orqali tasdiqlangan.
           </p>
         </div>
 
@@ -144,13 +140,16 @@ function VerifiedVerificationPage({
           <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-slate-900 sm:text-[34px]">
             {record.title}
           </h1>
+          <p className="mt-2 text-sm font-medium text-emerald-700">
+            Ushbu hujjat tizimda ro&apos;yxatdan o&apos;tgan va haqiqiy hisoblanadi.
+          </p>
         </div>
 
         <div className="mt-6 text-center">
-          <div className="grid gap-5 sm:grid-cols-3 sm:gap-4">
-            <VerificationLabel label="F.I.O" value={record.fullName} />
-            <VerificationLabel label="Passport" value={record.passport} />
-            <VerificationLabel label="Sana" value={formatIssuedDate(record.issuedDate)} />
+          <div className="mx-auto flex w-full max-w-md flex-col gap-4 text-left sm:gap-5">
+            <VerificationLabel label="F.I.O:" value={record.fullName} />
+            <VerificationLabel label="Passport:" value={record.passport} />
+            <VerificationLabel label="Sana:" value={formatIssuedDate(record.issuedDate)} />
           </div>
         </div>
 
@@ -158,32 +157,99 @@ function VerifiedVerificationPage({
 
         <div className="space-y-4">
           {record.files.length > 0 ? (
-            record.files.map((file, index) => (
-              <article key={file.id} className="space-y-3">
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                  PDF {index + 1}
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Link
-                    className="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                    href={buildFileHref(token, file.id, "view")}
+            <>
+              <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
+                <table className="w-full border-collapse text-left">
+                  <thead className="bg-slate-50">
+                    <tr className="border-b border-slate-200 text-xs font-medium text-slate-500">
+                      <th className="px-4 py-3">Fayl nomi</th>
+                      <th className="px-4 py-3">Fayl hajmi</th>
+                      <th className="px-4 py-3">Yuklangan vaqti</th>
+                      <th className="px-4 py-3 text-right">Amallar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {record.files.map((file) => (
+                      <tr key={file.id} className="border-b border-slate-100 last:border-b-0">
+                        <td className="px-4 py-3">
+                          <div className="flex items-start gap-2">
+                            <FileText aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <span className="min-w-0 break-words text-sm font-medium text-slate-900">
+                              {file.originalName}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {formatFileSize(file.sizeBytes)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {formatUploadedTime(file.createdAt)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              aria-label={`Ko'rish: ${file.originalName}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                              href={buildFileHref(token, file.id, "view")}
+                              title="Ko'rish"
+                            >
+                              <Eye aria-hidden className="h-4 w-4" />
+                            </Link>
+                            <Link
+                              aria-label={`Yuklab olish: ${file.originalName}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                              href={buildFileHref(token, file.id, "download")}
+                              title="Yuklab olish"
+                            >
+                              <Download aria-hidden className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {record.files.map((file) => (
+                  <article
+                    key={file.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4"
                   >
-                    Ko&apos;rish
-                  </Link>
-                  <Link
-                    className="inline-flex w-full items-center justify-center rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
-                    href={buildFileHref(token, file.id, "download")}
-                  >
-                    Yuklab olish
-                  </Link>
-                </div>
-                {file.originalName ? (
-                  <p className="text-center text-xs leading-5 text-slate-500">
-                    {file.originalName}
-                  </p>
-                ) : null}
-              </article>
-            ))
+                    <div className="flex items-start gap-2">
+                      <FileText aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-medium text-slate-900">
+                          {file.originalName}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          {formatFileSize(file.sizeBytes)} · {formatUploadedTime(file.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Link
+                        aria-label={`Ko'rish: ${file.originalName}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        href={buildFileHref(token, file.id, "view")}
+                        title="Ko'rish"
+                      >
+                        <Eye aria-hidden className="h-4 w-4" />
+                      </Link>
+                      <Link
+                        aria-label={`Yuklab olish: ${file.originalName}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        href={buildFileHref(token, file.id, "download")}
+                        title="Yuklab olish"
+                      >
+                        <Download aria-hidden className="h-4 w-4" />
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="text-center text-sm leading-6 text-slate-500">
               Biriktirilgan PDF fayllar yo&apos;q.
@@ -197,7 +263,7 @@ function VerifiedVerificationPage({
             <div className="flex justify-center">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 px-6 py-5">
                 <Image
-                  alt="Stamp or seal"
+                  alt="Muhr yoki seal"
                   className="max-h-40 w-auto max-w-full object-contain"
                   height={160}
                   unoptimized
@@ -213,6 +279,43 @@ function VerifiedVerificationPage({
   );
 }
 
+function getInvalidState(status?: string | null) {
+  switch (status) {
+    case "DRAFT":
+      return {
+        badge: "Qoralama",
+        title: "Hujjat e'lon qilinmagan",
+        description:
+          "Bu havola bo'yicha hujjat mavjud, lekin u hali ommaviy tekshiruvga chiqarilmagan.",
+        toneClassName: "border-slate-200 bg-slate-50 text-slate-700"
+      };
+    case "REVOKED":
+      return {
+        badge: "Bekor qilingan",
+        title: "Hujjat bekor qilingan",
+        description:
+          "Bu havola bo'yicha hujjat topildi, lekin u bekor qilingan va endi haqiqiy emas.",
+        toneClassName: "border-rose-200 bg-rose-50 text-rose-700"
+      };
+    case "EXPIRED":
+      return {
+        badge: "Muddati tugagan",
+        title: "Hujjat muddati tugagan",
+        description:
+          "Bu havola bo'yicha hujjat topildi, lekin uning amal qilish muddati tugagan.",
+        toneClassName: "border-amber-200 bg-amber-50 text-amber-700"
+      };
+    default:
+      return {
+        badge: "Yaroqsiz",
+        title: "Hujjat topilmadi yoki yaroqsiz",
+        description:
+          "Bu havola bo'yicha tasdiqlangan yozuv mavjud emas yoki u yaroqsiz.",
+        toneClassName: "border-slate-200 bg-slate-50 text-slate-700"
+      };
+  }
+}
+
 export default async function VerifyTokenPage({ params }: VerifyPageProps) {
   const { token } = await params;
 
@@ -226,10 +329,13 @@ export default async function VerifyTokenPage({ params }: VerifyPageProps) {
   });
 
   if (!record || record.status !== "VERIFIED") {
-    return <InvalidVerificationPage />;
+    const invalidState = getInvalidState(record?.status);
+    return <InvalidVerificationPage {...invalidState} />;
   }
 
-  const stampImageDataUrl = await readStampImageDataUrl(record.stampImageKey);
+  const stampImageDataUrl = await readDocumentStampImageDataUrl(
+    record.stampImageKey
+  );
 
   return (
     <VerifiedVerificationPage
@@ -239,5 +345,3 @@ export default async function VerifyTokenPage({ params }: VerifyPageProps) {
     />
   );
 }
-
-

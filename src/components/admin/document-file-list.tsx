@@ -1,6 +1,7 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 import type { DocumentFile } from "@prisma/client";
+import { Download, Eye, FileText, Trash2 } from "lucide-react";
 
 import { deleteDocumentFileAction } from "@/server/actions/document-files";
 
@@ -31,7 +32,7 @@ export function DocumentFileList({ documentRecordId, publicToken, files }: Docum
   if (files.length === 0) {
     return (
       <p className="text-sm leading-6 text-slate-600">
-        No PDF files have been uploaded yet.
+        Hali PDF fayllar yuklanmagan.
       </p>
     );
   }
@@ -49,33 +50,37 @@ export function DocumentFileList({ documentRecordId, publicToken, files }: Docum
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-slate-900">
+                <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                  <FileText aria-hidden className="h-4 w-4 text-slate-500" />
                   {file.sortOrder + 1}. {file.originalName}
                 </p>
                 <p className="text-xs leading-5 text-slate-500">
-                  {file.mimeType} | {formatBytes(file.sizeBytes)} | checksum {file.checksum.slice(0, 12)}...
+                  {file.mimeType} | {formatBytes(file.sizeBytes)} | xesh {file.checksum.slice(0, 12)}...
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Link
-                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:bg-slate-100"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:bg-slate-100"
                   href={publicViewHref}
                 >
-                  View
+                  <Eye aria-hidden className="h-3.5 w-3.5" />
+                  Ko&apos;rish
                 </Link>
                 <Link
-                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:bg-slate-100"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:bg-slate-100"
                   href={publicDownloadHref}
                 >
-                  Download
+                  <Download aria-hidden className="h-3.5 w-3.5" />
+                  Yuklab olish
                 </Link>
                 <form action={deleteDocumentFileAction.bind(null, documentRecordId, file.id)}>
                   <button
-                    className="inline-flex items-center rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
                     type="submit"
                   >
-                    Delete
+                    <Trash2 aria-hidden className="h-3.5 w-3.5" />
+                    O&apos;chirish
                   </button>
                 </form>
               </div>

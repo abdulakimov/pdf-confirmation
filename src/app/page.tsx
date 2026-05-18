@@ -1,30 +1,57 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { FileText, Plus } from "lucide-react";
 
-export default function HomePage() {
+import { DocumentRecordsTable } from "@/components/admin";
+import { auth } from "@/lib/auth/auth";
+import { listDocumentRecords } from "@/server/services";
+
+export default async function HomePage() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session || session.user.role !== "admin") {
+    redirect("/admin/login");
+  }
+
+  const records = await listDocumentRecords();
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl items-center justify-center px-6">
-      <section className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">
-          Document Verification Platform
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-900">
-          Foundation scaffold is ready.
-        </h1>
-        <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600">
-          The admin workflow and public verification UI will be built in later
-          slices. For now, this home page points to the temporary admin
-          placeholder.
-        </p>
-        <div className="mt-6">
-          <Link
-            className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-            href="/admin"
-          >
-            Open admin placeholder
-          </Link>
+    <main className="mx-auto min-h-screen w-full max-w-6xl px-6 py-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-medium text-slate-500">
+            <FileText aria-hidden className="h-4 w-4" />
+            Hujjatlarni boshqarish
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold text-slate-900">
+            Hujjatlar ro&apos;yxati
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Hujjatlar ro&apos;yxatini boshqaring. PDF yuklash, holat amallari va QR boshqaruvi tahrirlash sahifasida davom etadi.
+          </p>
         </div>
-      </section>
+        <Link
+          className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          href="/admin/documents/new"
+        >
+          <Plus aria-hidden className="h-4 w-4" />
+          Yangi hujjat
+        </Link>
+      </div>
+
+      <div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {records.length > 0 ? (
+          <DocumentRecordsTable records={records} />
+        ) : (
+          <div className="p-8 text-sm text-slate-600">
+            Hozircha hujjatlar yo&apos;q. Tasdiqlash metama&apos;lumotlarini boshqarishni
+            boshlash uchun birinchi hujjatni yarating.
+          </div>
+        )}
+      </div>
     </main>
   );
 }
-

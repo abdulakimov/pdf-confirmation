@@ -91,6 +91,7 @@ model DocumentRecord {
   stampImageKey String?
   publishedAt   DateTime?
   revokedAt     DateTime?
+  revokedReason String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   files         DocumentFile[]
@@ -128,3 +129,4 @@ model AuditLog {
   @@index([documentRecordId])
   @@index([action])
 }
+
