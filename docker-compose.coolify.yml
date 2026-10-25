@@ -1,0 +1,82 @@
+# Coolify deploy for new-vps (since 2026-10-26). On every push to main, Coolify builds Dockerfile.prod on
+# the box, runs `migrate` (prisma db push + bootstrap admin, as before), then starts `app`.
+#
+# Postgres is NOT here: it stays the `confirmation-db-1` container from docker-compose.prod.yml (volume
+# confirmation_postgres_data). This file joins its network `confirmation_default`, so `db` still resolves,
+# and mounts the same uploads volume. Never start a second postgres on that volume.
+# Env values live in Coolify (copied from the box's .env.production), never in git.
+# Host nginx terminates TLS for confirmation.qariya.uz and proxies to Coolify's Traefik (127.0.0.1:8081).
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: builder
+      args:
+        NEXT_PUBLIC_APP_URL: https://confirmation.qariya.uz
+        BETTER_AUTH_URL: https://confirmation.qariya.uz
+    restart: 'no'
+    command: ['sh', '-c', 'pnpm exec prisma db push && node scripts/bootstrap-admin.mjs']
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      LOCAL_UPLOAD_DIR: /app/uploads
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-}
+      MAX_PDF_MB: ${MAX_PDF_MB:-}
+      MAX_STAMP_IMAGE_MB: ${MAX_STAMP_IMAGE_MB:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
+    volumes:
+      - confirmation_uploads:/app/uploads
+    networks: [confirmation]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_URL: https://confirmation.qariya.uz
+        BETTER_AUTH_URL: https://confirmation.qariya.uz
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      LOCAL_UPLOAD_DIR: /app/uploads
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-}
+      MAX_PDF_MB: ${MAX_PDF_MB:-}
+      MAX_STAMP_IMAGE_MB: ${MAX_STAMP_IMAGE_MB:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - confirmation_uploads:/app/uploads
+    networks: [confirmation]
+    healthcheck:
+      # Traefik routes only to a healthy container: check every 2 s while starting.
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/admin/login']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+networks:
+  confirmation:
+    external: true
+    name: confirmation_default
+
+volumes:
+  confirmation_uploads:
+    external: true
