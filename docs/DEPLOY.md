@@ -15,3 +15,7 @@
   start app` in `/root/confirmation-qariya`, and point the vhost back to `127.0.0.1:3011`.
 - `docker-compose.prod.yml` / `Dockerfile.prod` are the previous box-only production files, now in git.
 - Database changes still follow `docs/OPS_SECURITY.md` (no destructive schema changes without approval).
+- `migrate` runs `scripts/bootstrap-admin.mjs` on EVERY deploy: it resets the admin password to
+  `BOOTSTRAP_ADMIN_PASSWORD`. To change the admin password, change that variable in Coolify and redeploy
+  (a password changed in the UI is overwritten by the next deploy). The script no longer prints the password.
+- Coolify deploys branch `main`. The GitHub default branch is `codex/publish-code`; do not deploy from it.

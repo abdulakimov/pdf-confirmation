@@ -67,9 +67,9 @@ async function main() {
     });
   }
 
+  // Never log the password: this runs on every deploy and its output lands in container/deploy logs.
   console.log(JSON.stringify({
     email,
-    password,
     role: "admin"
   }));
 
